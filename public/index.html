@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mail Split Gateway</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Mail Split Gateway</h1>
+      <p id="connectionStatus">未连接</p>
+    </div>
+    <form id="authForm" class="auth-form">
+      <input type="text" name="username" value="mail-gateway-admin" autocomplete="username" hidden>
+      <label for="apiKey">管理密钥</label>
+      <input id="apiKey" type="password" autocomplete="current-password" required>
+      <button type="submit">连接</button>
+    </form>
+  </header>
+
+  <nav id="mainNav" class="main-nav" aria-label="管理页面" hidden>
+    <button type="button" class="nav-tab active" data-view="mail">邮箱</button>
+    <button type="button" class="nav-tab" data-view="ic-mail">IC 邮箱</button>
+    <button type="button" class="nav-tab" data-view="registration">注册任务</button>
+    <button type="button" class="nav-tab" data-view="proxies">代理池</button>
+    <button type="button" class="nav-tab" data-view="accounts">已收录账号</button>
+    <button type="button" class="nav-tab" data-view="rebind">账号换绑</button>
+  </nav>
+
+  <main>
+    <div data-page="mail">
+    <section class="band">
+      <div class="section-head">
+        <h2>主邮箱</h2>
+        <button id="refreshButton" type="button">刷新</button>
+      </div>
+      <form id="mailboxForm" class="inline-form">
+        <label>邮箱<input name="email" type="email" autocomplete="username" required></label>
+        <label>密码<input name="password" type="password" autocomplete="new-password" required></label>
+        <button type="submit">添加</button>
+      </form>
+      <form id="mailboxImportForm">
+        <label for="mailboxImportText">批量导入主邮箱</label>
+        <textarea id="mailboxImportText" rows="5" required spellcheck="false" autocomplete="off" placeholder="email@example.com----password"></textarea>
+        <label for="mailboxImportFile">导入文件</label>
+        <input id="mailboxImportFile" type="file" accept=".txt,.csv,.json,.tsv">
+        <div class="form-actions"><button type="submit">批量导入</button></div>
+        <pre id="mailboxImportResult" role="status" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+      </form>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>邮箱</th><th>状态</th><th>远端数量</th><th>错误</th><th>操作</th></tr></thead>
+          <tbody id="mailboxRows"><tr><td colspan="5" class="empty">暂无数据</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="workspace" class="band" hidden>
+      <div class="section-head">
+        <div><h2 id="workspaceTitle">邮箱工作区</h2><p id="workspaceState"></p></div>
+        <div class="actions">
+          <button id="openButton" type="button">启动会话</button>
+          <button id="syncButton" type="button">同步</button>
+          <button id="closeButton" type="button" class="quiet">关闭会话</button>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <label>创建数量<input id="createCount" type="number" min="1" max="9" value="1"></label>
+        <button id="createButton" type="button">创建并导出</button>
+        <button id="clearAliasesButton" type="button" class="danger">清空已有分裂邮箱</button>
+      </div>
+      <label class="export-label" for="exportOutput">本次导出</label>
+      <textarea id="exportOutput" rows="5" readonly></textarea>
+      <button id="copyExportButton" type="button" class="quiet">复制导出内容</button>
+
+      <div class="tabs" role="tablist">
+        <button type="button" class="tab active" data-tab="aliases">分裂邮箱</button>
+        <button type="button" class="tab" data-tab="domains">后缀</button>
+      </div>
+
+      <div id="aliasesPanel" class="table-wrap tab-panel">
+        <table>
+          <thead><tr><th>分裂邮箱</th><th>状态</th><th>首次访问</th><th>验证码交付</th><th>错误</th><th>操作</th></tr></thead>
+          <tbody id="aliasRows"></tbody>
+        </table>
+      </div>
+      <div id="domainsPanel" class="table-wrap tab-panel" hidden>
+        <table>
+          <thead><tr><th>后缀</th><th>远端状态</th><th>分类</th></tr></thead>
+          <tbody id="domainRows"></tbody>
+        </table>
+      </div>
+    </section>
+    </div>
+
+    <div data-page="ic-mail" hidden>
+      <section class="band">
+        <div class="section-head">
+          <div><h2>IC 邮箱</h2><p>按取件链接来源自动选择协议，公开链接统一由 3110 提供</p></div>
+          <button id="refreshIcMailboxesButton" type="button" class="quiet">刷新</button>
+        </div>
+        <form id="icMailboxImportForm">
+          <label for="icMailboxImportText">批量导入</label>
+          <textarea id="icMailboxImportText" rows="6" required spellcheck="false" autocomplete="off" placeholder="name@icloud.com----https://provider.example/show/key/name@icloud.com"></textarea>
+          <div class="form-actions"><button type="submit">导入并生成链接</button></div>
+          <pre id="icMailboxImportResult" class="import-result" role="status"></pre>
+        </form>
+        <label for="icMailboxExportOutput">本次生成</label>
+        <textarea id="icMailboxExportOutput" rows="5" readonly></textarea>
+        <div class="form-actions"><button id="copyIcMailboxExportButton" type="button" class="quiet">复制</button></div>
+        <div class="table-wrap">
+          <table class="ic-mailbox-table">
+            <thead><tr><th>邮箱</th><th>取件源</th><th>适配器</th><th>状态</th><th>最近取件</th><th>错误</th><th>操作</th></tr></thead>
+            <tbody id="icMailboxRows"><tr><td colspan="7" class="empty">暂无 IC 邮箱</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div data-page="registration" hidden>
+      <section class="band">
+        <div class="section-head">
+          <div><h2>注册任务</h2><p>每批绑定 1 条公共站请求代理，注册代理数量按任务配置</p></div>
+          <button id="refreshRegistrationsButton" type="button" class="quiet">刷新</button>
+        </div>
+        <form id="registrationForm" class="inline-form">
+          <label>邮箱大类<select id="registrationMailboxCategory" name="mailboxCategory">
+            <option value="mail">Mail 分裂邮箱</option>
+            <option value="ic">IC 邮箱</option>
+          </select></label>
+          <label id="registrationProviderField" hidden>IC 取件来源<select id="registrationMailboxProvider" name="mailboxProvider">
+            <option value="">全部可用 IC 来源</option>
+            <option value="icloud.ikunai666.top">icloud.ikunai666.top</option>
+            <option value="enohaook.top1688.org">enohaook.top1688.org</option>
+          </select></label>
+          <label><span id="registrationCountLabel">分裂邮箱数量</span><input id="registrationCount" name="count" type="number" min="1" value="1" required></label>
+          <label>每邮箱注册代理数<input id="registrationProxyCount" name="proxiesPerMailbox" type="number" min="1" max="100" value="20" required></label>
+          <div class="form-stat"><span>需要代理</span><strong id="requiredProxyCount">20</strong></div>
+          <button id="startRegistrationButton" type="submit" disabled>创建任务</button>
+        </form>
+        <div id="proxyReadiness" class="status-line"></div>
+        <div id="registrationMailboxAvailability" class="status-line">MAIL 主邮箱数量待加载</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>创建时间</th><th>邮箱大类</th><th>数量</th><th>状态</th><th>成功</th><th>收录</th><th>失败</th><th>进度 / 错误</th></tr></thead>
+            <tbody id="registrationRows"><tr><td colspan="8" class="empty">暂无任务</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div data-page="proxies" hidden>
+      <section class="band pool-workspace">
+        <div class="section-head"><div><h2>代理池</h2><p>三池独立管理，任务自动分配代理。</p></div><button id="refreshProxiesButton" type="button" class="quiet">刷新库存</button></div>
+        <div class="pool-tabs" role="group" aria-label="选择代理池">
+          <button type="button" data-pool="task" aria-pressed="true">注册任务</button><button type="button" data-pool="control" aria-pressed="false">公共站请求</button><button type="button" data-pool="rebind" aria-pressed="false">账号换绑</button>
+        </div>
+        <p id="poolRule" class="pool-rule"></p>
+        <div class="pool-toolbar"><label>状态<select id="poolStatus"><option value="">全部状态</option></select></label><label class="pool-search">搜索脱敏地址<input id="poolSearch" type="search" placeholder="输入关键词" autocomplete="off"></label><label>每页<select id="poolLimit"><option>25</option><option selected>50</option><option>100</option></select></label></div>
+        <p id="poolLoadStatus" class="status-line" role="status"></p>
+        <section data-pool-panel="task" aria-label="注册任务代理池">
+          <div id="proxyStats" class="stats-strip"><div><span>库存</span><strong>待加载</strong></div></div>
+          <details class="pool-import"><summary>覆盖代理池 · 粘贴或 TXT（草稿自动保留在本页）</summary>
+            <form id="proxyForm" autocomplete="off">
+              <label for="proxyInput">一行一条代理</label>
+              <textarea id="proxyInput" rows="4" spellcheck="false" placeholder="host:port:user:password 或 http://user:password@host:port" required></textarea>
+              <div class="pool-import-options">
+              <label>读取 TXT 到草稿<input id="proxyFile" type="file" accept=".txt,text/plain"></label>
+              <button type="submit">预检并覆盖</button></div>
+              <p id="proxyPreview" class="import-result" role="status">尚未输入；无效行会阻止整批提交。</p>
+            </form>
+          </details>
+          <div class="table-wrap"><table><thead><tr><th>序号</th><th>代理（脱敏）</th><th>状态</th><th>绑定任务</th><th>冷却截止 / 导入时间</th><th>诊断</th></tr></thead><tbody id="proxyRows"><tr><td colspan="6" class="empty">尚未加载</td></tr></tbody></table></div>
+          <div id="proxyPagination" class="pagination" aria-label="注册任务代理分页"></div>
+        </section>
+        <section data-pool-panel="control" hidden aria-label="公共站请求代理池">
+          <div id="controlProxyStats" class="stats-strip"><div><span>库存</span><strong>待加载</strong></div></div>
+          <details class="pool-import"><summary>覆盖代理池 · 粘贴或 TXT（草稿自动保留在本页）</summary>
+            <form id="controlProxyForm" autocomplete="off">
+              <label for="controlProxyInput">一行一条代理</label>
+              <textarea id="controlProxyInput" rows="4" spellcheck="false" placeholder="host:port:user:password 或 http://user:password@host:port" required></textarea>
+              <div class="pool-import-options">
+              <label>读取 TXT 到草稿<input id="controlProxyFile" type="file" accept=".txt,text/plain"></label>
+              <button type="submit">预检并覆盖</button></div>
+              <p id="controlProxyPreview" class="import-result" role="status">尚未输入；无效行会阻止整批提交。</p>
+            </form>
+          </details>
+          <div class="table-wrap"><table><thead><tr><th>序号</th><th>代理（脱敏）</th><th>状态</th><th>绑定任务</th><th>冷却截止 / 导入时间</th><th>诊断</th></tr></thead><tbody id="controlProxyRows"><tr><td colspan="6" class="empty">尚未加载</td></tr></tbody></table></div>
+          <div id="controlProxyPagination" class="pagination" aria-label="公共站请求代理分页"></div>
+        </section>
+        <section data-pool-panel="rebind" hidden aria-label="账号换绑代理池">
+          <div id="rebindProxyStats" class="stats-strip"><div><span>库存</span><strong>待加载</strong></div></div>
+          <details class="pool-import"><summary>覆盖代理池 · 粘贴或 TXT（草稿自动保留在本页）</summary>
+            <form id="rebindProxyForm" autocomplete="off">
+              <label for="rebindProxyInput">一行一条代理</label>
+              <textarea id="rebindProxyInput" rows="4" spellcheck="false" placeholder="host:port:user:password 或 http://user:password@host:port" required></textarea>
+              <div class="pool-import-options">
+              <label>读取 TXT 到草稿<input id="rebindProxyFile" type="file" accept=".txt,text/plain"></label>
+              <button type="submit">预检并覆盖</button></div>
+              <p id="rebindProxyPreview" class="import-result" role="status">尚未输入；无效行会阻止整批提交。</p>
+            </form>
+          </details>
+          <div class="table-wrap"><table><thead><tr><th>序号</th><th>代理（脱敏）</th><th>状态</th><th>绑定任务</th><th>冷却截止 / 导入时间</th><th>诊断</th></tr></thead><tbody id="rebindProxyRows"><tr><td colspan="6" class="empty">尚未加载</td></tr></tbody></table></div>
+          <div id="rebindProxyPagination" class="pagination" aria-label="账号换绑代理分页"></div>
+        </section>
+      </section>
+    </div>
+
+    <div data-page="accounts" hidden>
+      <section class="band">
+        <div class="section-head"><h2>已收录账号</h2><button id="refreshAccountsButton" type="button" class="quiet">刷新</button></div>
+        <div id="accountStatusCounts" class="account-status-counts" aria-label="换绑状态及总数"></div>
+        <div class="account-filters" aria-label="账号筛选">
+          <label for="accountStatusFilter">换绑状态<select id="accountStatusFilter"><option value="all">全部</option><option value="original">未换绑</option><option value="rebinding">换绑中</option><option value="rebound">已换绑</option><option value="needs_review">待核对</option></select></label>
+          <label for="accountDateFilter">注册日期
+            <select id="accountDateFilter"><option value="all">全部日期</option></select>
+          </label>
+          <label for="accountCategoryFilter">注册来源
+            <select id="accountCategoryFilter"><option value="all">全部注册来源</option></select>
+          </label>
+          <label for="accountTrialFilter">试用资格（已换绑取新结果）
+            <select id="accountTrialFilter">
+              <option value="all">全部资格</option>
+              <option value="observed_eligible">有试用资格</option>
+              <option value="observed_ineligible">无试用资格</option>
+              <option value="unknown">资格未知</option>
+              <option value="not_checked">换绑后待检测</option>
+              <option value="checking">换绑后检测中</option>
+              <option value="error">换绑后检测失败</option>
+            </select>
+          </label>
+          <label for="accountSearchInput">邮箱
+            <input id="accountSearchInput" type="search" placeholder="搜索原邮箱或当前登录邮箱" autocomplete="off">
+          </label>
+          <div id="accountFilterSummary" class="filter-summary" aria-live="polite"></div>
+        </div>
+        <div class="table-wrap">
+          <table class="account-table">
+            <thead><tr><th>原邮箱 → 当前登录邮箱</th><th>注册来源</th><th>两步验证</th><th>试用资格 / 检测时间</th><th>注册完成时间</th><th>换绑状态 / 时间</th><th>操作</th></tr></thead>
+            <tbody id="accountRows"><tr><td colspan="7" class="empty">暂无已收录账号</td></tr></tbody>
+          </table>
+        </div>
+        <section id="accountHistory" class="reveal-panel" hidden aria-live="polite">
+          <div class="section-head"><h2>换绑历史</h2><button id="closeHistoryButton" type="button" class="quiet">关闭</button></div>
+          <div id="accountHistoryContent"></div>
+        </section>
+        <section id="accountReveal" class="reveal-panel" hidden>
+          <div class="section-head"><h2 id="revealedEmail"></h2><button id="closeRevealButton" type="button" class="quiet">关闭</button></div>
+          <div class="secret-grid">
+            <label>密码<div class="copy-field"><input id="revealedPassword" readonly><button type="button" data-copy="revealedPassword">复制</button></div></label>
+            <label>TOTP 密钥<div class="copy-field"><input id="revealedTotpSecret" readonly><button type="button" data-copy="revealedTotpSecret">复制</button></div></label>
+            <label>当前验证码<div class="copy-field"><input id="revealedTotp" readonly><button type="button" data-copy="revealedTotp">复制</button></div></label>
+          </div>
+          <label>会话结果<textarea id="revealedSession" rows="8" readonly></textarea></label>
+          <button type="button" data-copy="revealedSession" class="quiet">复制会话</button>
+        </section>
+      </section>
+    </div>
+    <div data-page="rebind" hidden>
+      <section class="band">
+        <div class="section-head"><div><h2>账号换绑</h2><p>24 小时冷却结束后仅解锁操作；每次换绑均须手动发起。</p></div><button id="refreshRebindButton" type="button">刷新</button></div>
+        <p id="rebindStatus" role="status" aria-live="polite"></p>
+        <button id="viewReboundAccounts" type="button" class="quiet">查看已换绑账号（新登录邮箱）</button>
+        <label for="rebindMailbox">目标 MAIL 主邮箱<select id="rebindMailbox"><option value="">请选择主邮箱</option></select></label>
+        <div class="rebind-pool-summary"><p id="rebindPoolSummary" role="status">独立换绑池尚未加载，暂不可提交。</p><button id="configureRebindPool" type="button" class="quiet">前往代理池配置</button></div>
+        <div class="table-wrap"><table class="rebind-table">
+          <thead><tr><th>合格账号</th><th>24h 冷却截止</th><th>可换绑状态</th><th>操作</th></tr></thead>
+          <tbody id="rebindAccountRows"><tr><td colspan="4" class="empty">尚未加载</td></tr></tbody>
+        </table></div>
+        <h3>换绑任务</h3>
+        <div class="table-wrap"><table class="rebind-table">
+          <thead><tr><th>任务</th><th>账号</th><th>状态 / 进度</th><th>更新时间</th><th>操作</th></tr></thead>
+          <tbody id="rebindJobRows"><tr><td colspan="5" class="empty">尚未加载</td></tr></tbody>
+        </table></div>
+      </section>
+    </div>
+  </main>
+  <div id="notice" role="status" aria-live="polite"></div>
+  <script src="/app.js" defer></script>
+</body>
+</html>

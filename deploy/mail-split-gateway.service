@@ -1,0 +1,35 @@
+[Unit]
+Description=Standalone mail.com split mailbox and OTP gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mailgateway
+Group=mailgateway
+WorkingDirectory=/opt/mail-split-gateway
+EnvironmentFile=/etc/mail-split-gateway.env
+Environment=NODE_ENV=production
+Environment=HOST=0.0.0.0
+Environment=PORT=3110
+Environment=MAIL_GATEWAY_DATA_DIR=/var/lib/mail-split-gateway
+Environment=HOME=/var/lib/mail-split-gateway
+Environment=XDG_CONFIG_HOME=/var/lib/mail-split-gateway/.config
+Environment=PLAYWRIGHT_BROWSERS_PATH=/opt/mail-split-gateway/ms-playwright
+Environment=MAIL_GATEWAY_BROWSER_HEADLESS=true
+ExecStart=/usr/local/bin/node src/main.js
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/mail-split-gateway
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

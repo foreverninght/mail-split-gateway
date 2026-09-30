@@ -1,0 +1,20 @@
+{
+  "name": "mail-split-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Standalone mail.com split-mailbox creation and OTP gateway",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "node src/main.js",
+    "check": "node --check src/domain/state-machine.js && node --check src/db/schema.js && node --check src/db/store.js && node --check src/mailcom/protocol-client.js && node --check src/mailcom/adapter.js && node --check src/ic/adapters/ikunai-direct-html.js && node --check src/ic/adapters/top1688-mail-html.js && node --check src/ic/adapter-registry.js && node --check src/ic/store.js && node --check src/ic/service.js && node --check src/services/gateway-service.js && node --check src/services/session-maintenance-scheduler.js && node --check src/registration/state-machine.js && node --check src/registration/store.js && node --check src/registration/service.js && node --check src/ifnexora/worker.js && node --check public/app.js && node --check src/main.js && node --check src/http/server.js && node --check src/rebind/store.js && node --check src/rebind/service.js && node --check src/rebind/worker.js && node --check src/rebind/proxy-store.js && node --check src/registration/rebind-metadata.js && node --check src/registration/trial-metadata.js && node --check src/rebind/trial-result.js && node --check src/rebind/trial-service.js && node --check src/rebind/recovery-store.js && node --check src/rebind/recovery-service.js",
+    "test": "node --test test/*.test.js",
+    "test:python": "python -B -m unittest discover -s python/rebind_worker -p \"test_*.py\""
+  },
+  "engines": {
+    "node": ">=22.5"
+  },
+  "dependencies": {
+    "htmlparser2": "^12.0.0",
+    "playwright": "^1.62.1"
+  }
+}

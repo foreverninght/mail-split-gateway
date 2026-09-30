@@ -1,0 +1,52 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { DatabaseSync } = require('node:sqlite');
+const { trialMetadata } = require('../src/registration/trial-metadata');
+
+test('trial metadata separates latest failure and last confirmation with email isolation and legacy columns', () => {
+  const db = new DatabaseSync(':memory:');
+  try {
+    const account = { id: 'a', email: ' NEW@example.test ' };
+    assert.equal(trialMetadata(db, account).post_rebind_trial_status, 'not_checked');
+    db.exec(`CREATE TABLE account_trial_checks (id TEXT, account_id TEXT, checked_email TEXT, state TEXT, status TEXT, checked_at TEXT, error_code TEXT, amount_minor INTEGER, currency TEXT);
+      INSERT INTO account_trial_checks VALUES ('1','a','new@example.test','completed','eligible','2026-06-01',NULL,0,'USD');
+      INSERT INTO account_trial_checks VALUES ('2','a','new@example.test','failed','error','2026-06-02','LOGIN_FAILED',NULL,NULL);`);
+    const legacy = trialMetadata(db, account);
+    assert.equal(legacy.post_rebind_trial_status, 'error');
+    assert.equal(legacy.post_rebind_trial_checked_at, '2026-06-02');
+    assert.equal(legacy.post_rebind_trial_last_confirmed_status, 'eligible');
+    assert.equal(legacy.post_rebind_trial_last_confirmed_checked_at, '2026-06-01');
+    assert.equal(legacy.post_rebind_trial_attempts, null);
+    assert.equal(legacy.post_rebind_trial_stage, null);
+    assert.equal(legacy.post_rebind_trial_error_phase, null);
+    assert.equal(legacy.post_rebind_trial_error_reason, null);
+    db.exec(`ALTER TABLE account_trial_checks ADD COLUMN error_category TEXT;
+      ALTER TABLE account_trial_checks ADD COLUMN http_status INTEGER;
+      ALTER TABLE account_trial_checks ADD COLUMN curl_code INTEGER;
+      ALTER TABLE account_trial_checks ADD COLUMN attempt_count INTEGER;
+      ALTER TABLE account_trial_checks ADD COLUMN stage TEXT;
+      ALTER TABLE account_trial_checks ADD COLUMN error_phase TEXT;
+      ALTER TABLE account_trial_checks ADD COLUMN error_reason TEXT;
+      UPDATE account_trial_checks SET stage='login_trial', error_phase='password_verify', error_reason='LOGIN_CREDENTIALS_REJECTED' WHERE id='2';
+      UPDATE account_trial_checks SET error_category='NETWORK_TLS', http_status=502, curl_code=35, attempt_count=3 WHERE id='2';`);
+    const current = trialMetadata(db, account);
+    assert.equal(current.post_rebind_trial_error_category, 'NETWORK_TLS');
+    assert.equal(current.post_rebind_trial_http_status, 502);
+    assert.equal(current.post_rebind_trial_curl_code, 35);
+    assert.equal(current.post_rebind_trial_attempts, 3);
+    assert.equal(current.post_rebind_trial_stage, 'login_trial');
+    assert.equal(current.post_rebind_trial_error_phase, 'password_verify');
+    assert.equal(current.post_rebind_trial_error_reason, 'LOGIN_CREDENTIALS_REJECTED');
+    const changed = trialMetadata(db, { ...account, email: 'other@example.test' });
+    assert.equal(changed.post_rebind_trial_status, 'not_checked');
+    assert.equal(changed.post_rebind_trial_last_confirmed_status, null);
+    assert.equal(changed.post_rebind_trial_stage, null);
+    assert.equal(changed.post_rebind_trial_error_phase, null);
+    assert.equal(changed.post_rebind_trial_error_reason, null);
+    db.exec("INSERT INTO account_trial_checks (id,account_id,checked_email,state,status,checked_at) VALUES ('3','a','other@example.test','completed','ineligible','2026-06-03')");
+    assert.equal(trialMetadata(db, account).post_rebind_trial_status, 'not_checked');
+    assert.equal(trialMetadata(db, account).post_rebind_trial_last_confirmed_status, 'eligible');
+    assert.equal(trialMetadata(db, { ...account, email: 'other@example.test' }).post_rebind_trial_last_confirmed_status, 'ineligible');
+  } finally { db.close(); }
+});
